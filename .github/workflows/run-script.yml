@@ -17,12 +17,14 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9' # O la versión que necesite tu script
+        python-version: '3.9' # Cambia si necesitas otra versión de Python
 
     - name: Install dependencies
       run: |
         pip install --upgrade pip
-        pip install python-telegram-bot requests nest-asyncio # Instala las dependencias necesarias
+        pip install python-telegram-bot requests nest-asyncio # Cambia según las dependencias que necesite tu script
 
     - name: Run script
-      run: python script.py # Asegúrate de que tu script se llame así o ajusta el nombre
+      run: python script.py
+      env:
+        BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
