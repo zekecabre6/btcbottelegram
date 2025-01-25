@@ -8,48 +8,34 @@ from dotenv import load_dotenv
 load_dotenv()  # Carga las variables de entorno desde el archivo .env
 TOKEN = os.getenv("BOT_TOKEN")  # Obtiene el token desde la variable de entorno
 
-# Función para obtener el precio de BTC/USDT desde la API de Binance
+# Función para obtener el precio de BTC/USDT desde la API de CoinGecko
 def get_btc_price():
-    url = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
+    url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
     response = requests.get(url)
     data = response.json()
-    return float(data['price'])
+    return float(data['bitcoin']['usd'])
 
 # Diccionario para almacenar los intervalos y alertas de cada usuario
 user_settings = {}
 # Diccionario para rastrear los últimos 10 mensajes enviados por cada chat
 last_messages = {}
 
-# Comando de inicio
-async def start(update: Update, context):
-    chat_id = update.message.chat_id
-
-    # Configuración inicial del usuario
-    user_settings[chat_id] = {"interval": 60, "alert_above": None, "alert_below": None}
-
-    # Mensaje de bienvenida con menú
-    menu = ReplyKeyboardMarkup(
-        [["📈 Precio cada minuto", "⏱ Cambiar intervalo"], ["🔔 Configurar alerta"]], 
-        resize_keyboard=True
-    )
-    await update.message.reply_text(
-        "👋 ¡Hola! Bienvenido al bot de seguimiento de precios de BTC/USDT. Aquí están tus opciones: \n\n"
-        "📈 *Precio cada minuto*: Recibe el precio automáticamente.\n"
-        "⏱ *Cambiar intervalo*: Ajusta la frecuencia de notificaciones. Ejemplo: /setinterval 5\n"
-        "🔔 *Configurar alerta*: Configura alertas personalizadas cuando el precio suba o baje. Ejemplo: /alert arriba 104000\n\n"
-        "Por defecto, recibirás actualizaciones cada 1 minuto. 🎯",
-        reply_markup=menu,
-        parse_mode="Markdown"
+# Función de inicio del bot
+async def start(update, context):
+    chat_id = update.effective_chat.id
+    await update.message.reply_text("Hola, estoy siguiendo el precio de BTC/USDT para ti. 🚀")
+    
+    # Agregar el trabajo para enviar el precio periódicamente
+    context.job_queue.run_repeating(
+        send_btc_price,  # Función que se ejecutará
+        interval=60,  # Intervalo en segundos
+        first=0,  # Inicia inmediatamente
+        chat_id=chat_id  # Pasar el chat_id como dato al contexto del trabajo
     )
 
-    # Enviar el precio de BTC de inmediato
-    await send_btc_price(context, chat_id)
-
-    # Inicia el envío periódico de precios
-    context.job_queue.run_repeating(send_btc_price, interval=60, first=0, chat_id=chat_id)
-
-# Modificar send_btc_price para recibir el chat_id como argumento
-async def send_btc_price(context, chat_id):
+# Modificar send_btc_price para obtener chat_id desde el contexto
+async def send_btc_price(context):
+    chat_id = context.job.chat_id  # Obtén el chat_id del trabajo
     price = get_btc_price()
 
     # Envía un nuevo mensaje con el precio
@@ -104,7 +90,7 @@ async def set_interval(update: Update, context):
         await update.message.reply_text(f"⏱ Intervalo de notificaciones actualizado a {interval} minutos.")
     
     except (IndexError, ValueError):
-        await update.message.reply_text("❗ Por favor, proporciona un número válido de minutos. Ejemplo: /setinterval 5")
+        await update.message.reply_text("❗ Por favor, proporciona un número válido de minutos. Ejemplo: /setinterval 60")
 
 # Comando para configurar alertas de precios
 async def set_alert(update: Update, context):
