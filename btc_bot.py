@@ -1,6 +1,6 @@
 import asyncio
 import requests
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update
 from telegram.ext import Application, CommandHandler
 import os
 from dotenv import load_dotenv
@@ -129,11 +129,20 @@ async def stop(update: Update, context):
 
     await update.message.reply_text("🔴 El bot ha sido detenido. Ya no recibirás actualizaciones de precios.")
 
-# Inicializa el bot
+# Función asincrónica para realizar peticiones constantes
+async def fetch_prices_forever():
+    while True:
+        try:
+            price = get_btc_price()  # Obtiene el precio
+            print(f"Precio actual de BTC/USDT: ${price:.2f}")  # Opcional: imprimir en consola
+        except Exception as e:
+            print(f"Error al obtener el precio: {e}")
+        await asyncio.sleep(5)  # Espera 5 segundos antes de la siguiente petición
+
+# Inicializa el bot y las peticiones constantes
 async def main():
     application = Application.builder().token(TOKEN).build()
 
-    # Verifica si job_queue está disponible
     if not application.job_queue:
         print("JobQueue no está configurado.")
     else:
@@ -143,8 +152,9 @@ async def main():
         application.add_handler(CommandHandler('alert', set_alert))
         application.add_handler(CommandHandler('stop', stop))
 
-        # Inicia el bot
-        await application.run_polling()
+        # Inicia el bot y la tarea de peticiones constantes
+        tasks = asyncio.gather(application.run_polling(), fetch_prices_forever())
+        await tasks
 
 # Si ya hay un bucle de eventos en ejecución, evita llamar a asyncio.run
 if __name__ == '__main__':
