@@ -76,7 +76,7 @@ async def set_interval(update: Update, context):
             raise ValueError("El intervalo debe ser al menos de 1 minuto.")
         
         # Eliminar trabajos anteriores para este usuario
-        current_jobs = context.job_queue.get_jobs_by_chat_id(chat_id)
+        current_jobs = context.job_queue.get_jobs_by_name(chat_id)
         for job in current_jobs:
             job.schedule_removal()  # Remueve la tarea anterior
 
@@ -114,7 +114,7 @@ async def stop(update: Update, context):
     chat_id = update.message.chat_id
 
     # Detener el envío de precios periódicos
-    current_jobs = context.job_queue.get_jobs_by_chat_id(chat_id)
+    current_jobs = context.job_queue.get_jobs_by_name(chat_id)
     for job in current_jobs:
         job.schedule_removal()  # Remueve la tarea periódica
 
