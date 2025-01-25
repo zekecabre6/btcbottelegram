@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main  # O la rama que estés utilizando
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,5 +22,7 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run bot script
-        run: python main.py  # Ajusta la ruta si tu archivo está en una subcarpeta
+      - name: Set up Telegram Bot Token
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}  # Pasa el token desde los secretos
+        run: python main.py  # Ejecuta el script
