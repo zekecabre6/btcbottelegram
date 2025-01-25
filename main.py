@@ -9,12 +9,21 @@ TOKEN = os.getenv("BOT_TOKEN")
 # Variable global para almacenar el precio de BTC
 btc_price = None
 
-# Función para obtener el precio de BTC/USDT desde la API de Binance
+# Función para obtener el precio de BTC/USDT desde la 
 def get_btc_price():
     url = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
     response = requests.get(url)
-    data = response.json()
-    return float(data['price'])
+
+    if response.status_code == 200:
+        data = response.json()
+        try:
+            return float(data['price'])
+        except KeyError:
+            print("La clave 'price' no se encuentra en la respuesta:", data)
+            return None
+    else:
+        print(f"Error al obtener los datos de Binance. Código de estado: {response.status_code}")
+        return None
 
 # Diccionario para almacenar los intervalos y alertas de cada usuario
 user_settings = {}
