@@ -7,12 +7,17 @@ from dotenv import load_dotenv
 load_dotenv()  # Carga las variables de entorno desde el archivo .env
 TOKEN = os.getenv("BOT_TOKEN")  # Obtiene el token desde la variable de entorno
 
-# Función para obtener el precio de BTC/USDT desde la API de Binance
+# Función para obtener el precio de BTC/USDT desde CryptoCompare
 def get_btc_price():
-    url = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
+    url = "https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=USDT"
     response = requests.get(url)
     data = response.json()
-    return float(data['price'])
+    
+    if 'USDT' in data:
+        return float(data['USDT'])
+    else:
+        print(f"Error al obtener el precio: {data}")
+        return None
 
 # Diccionario para almacenar los intervalos y alertas de cada usuario
 user_settings = {}
@@ -51,33 +56,34 @@ async def start(update: Update, context):
 async def send_btc_price(context, chat_id):
     price = get_btc_price()
 
-    # Envía un nuevo mensaje con el precio
-    message = await context.bot.send_message(chat_id=chat_id, text=f"💰 El precio actual de BTC/USDT es: ${price:.2f}")
+    if price is not None:
+        # Envía un nuevo mensaje con el precio
+        message = await context.bot.send_message(chat_id=chat_id, text=f"💰 El precio actual de BTC/USDT es: ${price:.2f}")
 
-    # Almacena el ID del mensaje enviado
-    if chat_id not in last_messages:
-        last_messages[chat_id] = []
-    last_messages[chat_id].append(message.message_id)
+        # Almacena el ID del mensaje enviado
+        if chat_id not in last_messages:
+            last_messages[chat_id] = []
+        last_messages[chat_id].append(message.message_id)
 
-    # Si hay más de 10 mensajes, elimina todos los mensajes
-    if len(last_messages[chat_id]) > 10:
-        for message_id in last_messages[chat_id]:
-            try:
-                await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
-            except Exception as e:
-                print(f"No se pudo eliminar el mensaje: {e}")
-        last_messages[chat_id] = []  # Limpia la lista de mensajes después de borrarlos
+        # Si hay más de 10 mensajes, elimina todos los mensajes
+        if len(last_messages[chat_id]) > 10:
+            for message_id in last_messages[chat_id]:
+                try:
+                    await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
+                except Exception as e:
+                    print(f"No se pudo eliminar el mensaje: {e}")
+            last_messages[chat_id] = []  # Limpia la lista de mensajes después de borrarlos
 
-    # Verifica alertas de precios configuradas
-    user_data = user_settings.get(chat_id, {})
-    alert_above = user_data.get("alert_above")
-    alert_below = user_data.get("alert_below")
-    if alert_above and price > alert_above:
-        await context.bot.send_message(chat_id=chat_id, text=f"⚠️ El precio ha superado tu alerta: ${alert_above:.2f}")
-        user_data["alert_above"] = None  # Resetea la alerta después de notificar
-    if alert_below and price < alert_below:
-        await context.bot.send_message(chat_id=chat_id, text=f"⚠️ El precio ha bajado de tu alerta: ${alert_below:.2f}")
-        user_data["alert_below"] = None  # Resetea la alerta después de notificar
+        # Verifica alertas de precios configuradas
+        user_data = user_settings.get(chat_id, {})
+        alert_above = user_data.get("alert_above")
+        alert_below = user_data.get("alert_below")
+        if alert_above and price > alert_above:
+            await context.bot.send_message(chat_id=chat_id, text=f"⚠️ El precio ha superado tu alerta: ${alert_above:.2f}")
+            user_data["alert_above"] = None  # Resetea la alerta después de notificar
+        if alert_below and price < alert_below:
+            await context.bot.send_message(chat_id=chat_id, text=f"⚠️ El precio ha bajado de tu alerta: ${alert_below:.2f}")
+            user_data["alert_below"] = None  # Resetea la alerta después de notificar
 
 # Comando para configurar el intervalo de notificaciones
 async def set_interval(update: Update, context):
