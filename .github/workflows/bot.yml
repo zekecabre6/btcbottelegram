@@ -24,4 +24,4 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run bot script
-        run: python src/main.py  # Ajusta la ruta si tu archivo está en una subcarpeta
+        run: python main.py  # Ajusta la ruta si tu archivo está en una subcarpeta
