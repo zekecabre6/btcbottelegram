@@ -2,9 +2,8 @@ import asyncio
 import requests
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler
-
-# Tu token de bot
-TOKEN = "7696498573:AAFmWzG4MFI2QW0B3k8Ez2sOevJ8FmrvgG4"
+import os
+TOKEN = os.getenv("BOT_TOKEN")
 
 # Función para obtener el precio de BTC/USDT desde la API de Binance
 def get_btc_price():
