@@ -1,0 +1,28 @@
+name: Run Python Script
+
+on:
+  push:
+    branches:
+      - main # Cambia "main" si tu rama principal tiene otro nombre
+  workflow_dispatch: # Permite ejecución manual desde la pestaña "Actions"
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9' # O la versión que necesite tu script
+
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install python-telegram-bot requests nest-asyncio # Instala las dependencias necesarias
+
+    - name: Run script
+      run: python script.py # Asegúrate de que tu script se llame así o ajusta el nombre
