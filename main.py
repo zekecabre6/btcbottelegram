@@ -3,6 +3,7 @@ import requests
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackContext
 import os
+from dotenv import load_dotenv
 
 TOKEN = os.getenv("BOT_TOKEN")
 
@@ -59,6 +60,13 @@ async def update_btc_price(context: CallbackContext):
     btc_price = get_btc_price()
     
     if btc_price is not None:
+        # Verificar alertas
+        if user_settings[chat_id]["alert_above"] and btc_price > user_settings[chat_id]["alert_above"]:
+            await context.bot.send_message(chat_id=chat_id, text=f"🔔 ¡Alerta! El precio de BTC ha superado los ${btc_price:.2f}.")
+        elif user_settings[chat_id]["alert_below"] and btc_price < user_settings[chat_id]["alert_below"]:
+            await context.bot.send_message(chat_id=chat_id, text=f"🔔 ¡Alerta! El precio de BTC ha caído por debajo de los ${btc_price:.2f}.")
+
+        # Enviar precio actual
         await context.bot.send_message(chat_id=chat_id, text=f"💰 El precio actual de BTC/USDT es: ${btc_price:.2f}")
     else:
         await context.bot.send_message(chat_id=chat_id, text="No se pudo obtener el precio de BTC/USDT en este momento.")
