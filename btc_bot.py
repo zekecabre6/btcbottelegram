@@ -4,6 +4,7 @@ from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler
 import os
 from dotenv import load_dotenv
+
 load_dotenv()  # Carga las variables de entorno desde el archivo .env
 TOKEN = os.getenv("BOT_TOKEN")  # Obtiene el token desde la variable de entorno
 
