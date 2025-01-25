@@ -3,8 +3,11 @@ import requests
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler
 import os
+
 TOKEN = os.getenv("BOT_TOKEN")
 
+# Variable global para almacenar el precio de BTC
+btc_price = None
 
 # Función para obtener el precio de BTC/USDT desde la API de Binance
 def get_btc_price():
@@ -15,40 +18,6 @@ def get_btc_price():
 
 # Diccionario para almacenar los intervalos y alertas de cada usuario
 user_settings = {}
-# Diccionario para rastrear los últimos 10 mensajes enviados por cada chat
-last_messages = {}
-
-async def send_btc_price(context):
-    chat_id = context.job.chat_id
-    price = get_btc_price()
-
-    # Envía un nuevo mensaje con el precio
-    message = await context.bot.send_message(chat_id=chat_id, text=f"💰 El precio actual de BTC/USDT es: ${price:.2f}")
-
-    # Almacena el ID del mensaje enviado
-    if chat_id not in last_messages:
-        last_messages[chat_id] = []
-    last_messages[chat_id].append(message.message_id)
-
-    # Si hay más de 10 mensajes, elimina todos los mensajes
-    if len(last_messages[chat_id]) > 10:
-        for message_id in last_messages[chat_id]:
-            try:
-                await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
-            except Exception as e:
-                print(f"No se pudo eliminar el mensaje: {e}")
-        last_messages[chat_id] = []  # Limpia la lista de mensajes después de borrarlos
-
-    # Verifica alertas de precios configuradas
-    user_data = user_settings.get(chat_id, {})
-    alert_above = user_data.get("alert_above")
-    alert_below = user_data.get("alert_below")
-    if alert_above and price > alert_above:
-        await context.bot.send_message(chat_id=chat_id, text=f"⚠️ El precio ha superado tu alerta: ${alert_above:.2f}")
-        user_data["alert_above"] = None  # Resetea la alerta después de notificar
-    if alert_below and price < alert_below:
-        await context.bot.send_message(chat_id=chat_id, text=f"⚠️ El precio ha bajado de tu alerta: ${alert_below:.2f}")
-        user_data["alert_below"] = None  # Resetea la alerta después de notificar
 
 # Comando de inicio
 async def start(update: Update, context):
@@ -73,7 +42,17 @@ async def start(update: Update, context):
     )
 
     # Inicia el envío periódico de precios
-    context.job_queue.run_repeating(send_btc_price, interval=60, first=0, chat_id=chat_id)
+    context.job_queue.run_repeating(update_btc_price, interval=60, first=0)
+
+# Función para actualizar el precio de BTC cada 60 segundos
+async def update_btc_price(context):
+    global btc_price
+    btc_price = get_btc_price()
+    print(f"Precio actualizado: {btc_price}")
+
+    # Envía un mensaje a todos los usuarios que tienen configurado recibir notificaciones
+    for chat_id in user_settings.keys():
+        await context.bot.send_message(chat_id=chat_id, text=f"💰 El precio actual de BTC/USDT es: ${btc_price:.2f}")
 
 # Comando para configurar el intervalo de notificaciones
 async def set_interval(update: Update, context):
@@ -93,7 +72,7 @@ async def set_interval(update: Update, context):
         user_settings[chat_id]["interval"] = interval * 60
         
         # Crear la nueva tarea periódica con el nuevo intervalo
-        context.job_queue.run_repeating(send_btc_price, interval=interval * 60, first=0, chat_id=chat_id)
+        context.job_queue.run_repeating(update_btc_price, interval=interval * 60, first=0)
         
         # Responder al usuario
         await update.message.reply_text(f"⏱ Intervalo de notificaciones actualizado a {interval} minutos.")
@@ -126,15 +105,6 @@ async def stop(update: Update, context):
     current_jobs = context.job_queue.get_jobs_by_chat_id(chat_id)
     for job in current_jobs:
         job.schedule_removal()  # Remueve la tarea periódica
-
-    # Elimina los mensajes almacenados
-    if chat_id in last_messages:
-        for message_id in last_messages[chat_id]:
-            try:
-                await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
-            except Exception as e:
-                print(f"No se pudo eliminar un mensaje: {e}")
-        del last_messages[chat_id]
 
     await update.message.reply_text("🔴 El bot ha sido detenido. Ya no recibirás actualizaciones de precios.")
 
