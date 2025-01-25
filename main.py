@@ -1,7 +1,7 @@
 import asyncio
 import requests
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import Application, CommandHandler
+from telegram.ext import Application, CommandHandler, CallbackContext
 import os
 
 TOKEN = os.getenv("BOT_TOKEN")
@@ -54,14 +54,14 @@ async def start(update: Update, context):
     context.job_queue.run_repeating(update_btc_price, interval=60, first=0)
 
 # Función para actualizar el precio de BTC cada 60 segundos
-async def update_btc_price(context):
-    global btc_price
+async def update_btc_price(context: CallbackContext):
+    chat_id = context.job.context['chat_id']
     btc_price = get_btc_price()
-    print(f"Precio actualizado: {btc_price}")
-
-    # Envía un mensaje a todos los usuarios que tienen configurado recibir notificaciones
-    for chat_id in user_settings.keys():
+    
+    if btc_price is not None:
         await context.bot.send_message(chat_id=chat_id, text=f"💰 El precio actual de BTC/USDT es: ${btc_price:.2f}")
+    else:
+        await context.bot.send_message(chat_id=chat_id, text="No se pudo obtener el precio de BTC/USDT en este momento.")
 
 # Comando para configurar el intervalo de notificaciones
 async def set_interval(update: Update, context):
