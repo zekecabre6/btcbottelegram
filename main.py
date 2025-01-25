@@ -112,6 +112,9 @@ async def stop(update: Update, context):
 async def main():
     application = Application.builder().token(TOKEN).build()
 
+    # Habilitar JobQueue
+    application.job_queue
+
     # Manejadores de comandos
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('setinterval', set_interval))
