@@ -3,7 +3,9 @@ import requests
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler
 import os
-TOKEN = os.getenv("BOT_TOKEN")
+from dotenv import load_dotenv
+load_dotenv()  # Carga las variables de entorno desde el archivo .env
+TOKEN = os.getenv("BOT_TOKEN")  # Obtiene el token desde la variable de entorno
 
 # Función para obtener el precio de BTC/USDT desde la API de Binance
 def get_btc_price():
@@ -17,8 +19,36 @@ user_settings = {}
 # Diccionario para rastrear los últimos 10 mensajes enviados por cada chat
 last_messages = {}
 
-async def send_btc_price(context):
-    chat_id = context.job.chat_id
+# Comando de inicio
+async def start(update: Update, context):
+    chat_id = update.message.chat_id
+
+    # Configuración inicial del usuario
+    user_settings[chat_id] = {"interval": 60, "alert_above": None, "alert_below": None}
+
+    # Mensaje de bienvenida con menú
+    menu = ReplyKeyboardMarkup(
+        [["📈 Precio cada minuto", "⏱ Cambiar intervalo"], ["🔔 Configurar alerta"]], 
+        resize_keyboard=True
+    )
+    await update.message.reply_text(
+        "👋 ¡Hola! Bienvenido al bot de seguimiento de precios de BTC/USDT. Aquí están tus opciones: \n\n"
+        "📈 *Precio cada minuto*: Recibe el precio automáticamente.\n"
+        "⏱ *Cambiar intervalo*: Ajusta la frecuencia de notificaciones. Ejemplo: /setinterval 5\n"
+        "🔔 *Configurar alerta*: Configura alertas personalizadas cuando el precio suba o baje. Ejemplo: /alert arriba 104000\n\n"
+        "Por defecto, recibirás actualizaciones cada 1 minuto. 🎯",
+        reply_markup=menu,
+        parse_mode="Markdown"
+    )
+
+    # Enviar el precio de BTC de inmediato
+    await send_btc_price(context, chat_id)
+
+    # Inicia el envío periódico de precios
+    context.job_queue.run_repeating(send_btc_price, interval=60, first=0, chat_id=chat_id)
+
+# Modificar send_btc_price para recibir el chat_id como argumento
+async def send_btc_price(context, chat_id):
     price = get_btc_price()
 
     # Envía un nuevo mensaje con el precio
@@ -48,31 +78,6 @@ async def send_btc_price(context):
     if alert_below and price < alert_below:
         await context.bot.send_message(chat_id=chat_id, text=f"⚠️ El precio ha bajado de tu alerta: ${alert_below:.2f}")
         user_data["alert_below"] = None  # Resetea la alerta después de notificar
-
-# Comando de inicio
-async def start(update: Update, context):
-    chat_id = update.message.chat_id
-
-    # Configuración inicial del usuario
-    user_settings[chat_id] = {"interval": 60, "alert_above": None, "alert_below": None}
-
-    # Mensaje de bienvenida con menú
-    menu = ReplyKeyboardMarkup(
-        [["📈 Precio cada minuto", "⏱ Cambiar intervalo"], ["🔔 Configurar alerta"]],
-        resize_keyboard=True
-    )
-    await update.message.reply_text(
-        "👋 ¡Hola! Bienvenido al bot de seguimiento de precios de BTC/USDT. Aquí están tus opciones: \n\n"
-        "📈 *Precio cada minuto*: Recibe el precio automáticamente.\n"
-        "⏱ *Cambiar intervalo*: Ajusta la frecuencia de notificaciones. Ejemplo: /setinterval 5\n"
-        "🔔 *Configurar alerta*: Configura alertas personalizadas cuando el precio suba o baje. Ejemplo: /alert arriba 104000\n\n"
-        "Por defecto, recibirás actualizaciones cada 1 minuto. 🎯",
-        reply_markup=menu,
-        parse_mode="Markdown"
-    )
-
-    # Inicia el envío periódico de precios
-    context.job_queue.run_repeating(send_btc_price, interval=60, first=0, chat_id=chat_id)
 
 # Comando para configurar el intervalo de notificaciones
 async def set_interval(update: Update, context):
