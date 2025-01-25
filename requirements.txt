@@ -1,4 +1,0 @@
-requests
-nest-asyncio
-python-telegram-bot[job-queue]==20.1
-requests==2.26.0

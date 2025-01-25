@@ -1,33 +1,54 @@
 import asyncio
 import requests
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackContext
-import os
-from dotenv import load_dotenv
+from telegram.ext import Application, CommandHandler
 
-TOKEN = os.getenv("BOT_TOKEN")
+# Tu token de bot
+TOKEN = "7696498573:AAFmWzG4MFI2QW0B3k8Ez2sOevJ8FmrvgG4"
 
-# Variable global para almacenar el precio de BTC
-btc_price = None
-
-# Función para obtener el precio de BTC/USDT desde la 
+# Función para obtener el precio de BTC/USDT desde la API de Binance
 def get_btc_price():
     url = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
     response = requests.get(url)
-
-    if response.status_code == 200:
-        data = response.json()
-        try:
-            return float(data['price'])
-        except KeyError:
-            print("La clave 'price' no se encuentra en la respuesta:", data)
-            return None
-    else:
-        print(f"Error al obtener los datos de Binance. Código de estado: {response.status_code}")
-        return None
+    data = response.json()
+    return float(data['price'])
 
 # Diccionario para almacenar los intervalos y alertas de cada usuario
 user_settings = {}
+# Diccionario para rastrear los últimos 10 mensajes enviados por cada chat
+last_messages = {}
+
+async def send_btc_price(context):
+    chat_id = context.job.chat_id
+    price = get_btc_price()
+
+    # Envía un nuevo mensaje con el precio
+    message = await context.bot.send_message(chat_id=chat_id, text=f"💰 El precio actual de BTC/USDT es: ${price:.2f}")
+
+    # Almacena el ID del mensaje enviado
+    if chat_id not in last_messages:
+        last_messages[chat_id] = []
+    last_messages[chat_id].append(message.message_id)
+
+    # Si hay más de 10 mensajes, elimina todos los mensajes
+    if len(last_messages[chat_id]) > 10:
+        for message_id in last_messages[chat_id]:
+            try:
+                await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
+            except Exception as e:
+                print(f"No se pudo eliminar el mensaje: {e}")
+        last_messages[chat_id] = []  # Limpia la lista de mensajes después de borrarlos
+
+    # Verifica alertas de precios configuradas
+    user_data = user_settings.get(chat_id, {})
+    alert_above = user_data.get("alert_above")
+    alert_below = user_data.get("alert_below")
+    if alert_above and price > alert_above:
+        await context.bot.send_message(chat_id=chat_id, text=f"⚠️ El precio ha superado tu alerta: ${alert_above:.2f}")
+        user_data["alert_above"] = None  # Resetea la alerta después de notificar
+    if alert_below and price < alert_below:
+        await context.bot.send_message(chat_id=chat_id, text=f"⚠️ El precio ha bajado de tu alerta: ${alert_below:.2f}")
+        user_data["alert_below"] = None  # Resetea la alerta después de notificar
 
 # Comando de inicio
 async def start(update: Update, context):
@@ -52,24 +73,7 @@ async def start(update: Update, context):
     )
 
     # Inicia el envío periódico de precios
-    context.job_queue.run_repeating(update_btc_price, interval=60, first=0)
-
-# Función para actualizar el precio de BTC cada 60 segundos
-async def update_btc_price(context: CallbackContext):
-    chat_id = context.job.context['chat_id']
-    btc_price = get_btc_price()
-    
-    if btc_price is not None:
-        # Verificar alertas
-        if user_settings[chat_id]["alert_above"] and btc_price > user_settings[chat_id]["alert_above"]:
-            await context.bot.send_message(chat_id=chat_id, text=f"🔔 ¡Alerta! El precio de BTC ha superado los ${btc_price:.2f}.")
-        elif user_settings[chat_id]["alert_below"] and btc_price < user_settings[chat_id]["alert_below"]:
-            await context.bot.send_message(chat_id=chat_id, text=f"🔔 ¡Alerta! El precio de BTC ha caído por debajo de los ${btc_price:.2f}.")
-
-        # Enviar precio actual
-        await context.bot.send_message(chat_id=chat_id, text=f"💰 El precio actual de BTC/USDT es: ${btc_price:.2f}")
-    else:
-        await context.bot.send_message(chat_id=chat_id, text="No se pudo obtener el precio de BTC/USDT en este momento.")
+    context.job_queue.run_repeating(send_btc_price, interval=60, first=0, chat_id=chat_id)
 
 # Comando para configurar el intervalo de notificaciones
 async def set_interval(update: Update, context):
@@ -89,7 +93,7 @@ async def set_interval(update: Update, context):
         user_settings[chat_id]["interval"] = interval * 60
         
         # Crear la nueva tarea periódica con el nuevo intervalo
-        context.job_queue.run_repeating(update_btc_price, interval=interval * 60, first=0)
+        context.job_queue.run_repeating(send_btc_price, interval=interval * 60, first=0, chat_id=chat_id)
         
         # Responder al usuario
         await update.message.reply_text(f"⏱ Intervalo de notificaciones actualizado a {interval} minutos.")
@@ -123,14 +127,20 @@ async def stop(update: Update, context):
     for job in current_jobs:
         job.schedule_removal()  # Remueve la tarea periódica
 
+    # Elimina los mensajes almacenados
+    if chat_id in last_messages:
+        for message_id in last_messages[chat_id]:
+            try:
+                await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
+            except Exception as e:
+                print(f"No se pudo eliminar un mensaje: {e}")
+        del last_messages[chat_id]
+
     await update.message.reply_text("🔴 El bot ha sido detenido. Ya no recibirás actualizaciones de precios.")
 
 # Inicializa el bot
 async def main():
     application = Application.builder().token(TOKEN).build()
-
-    # Habilitar JobQueue
-    application.job_queue
 
     # Manejadores de comandos
     application.add_handler(CommandHandler('start', start))
